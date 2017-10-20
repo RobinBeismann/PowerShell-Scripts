@@ -9,7 +9,7 @@ Import-Module -Name ActiveDirectory
 $globalPrefix = 'SG_'
 $searchBase = 'OU=Computer,OU=DummyOU,DC=contoso,DC=com'
 $domain = 'contoso.com'
-$domainNETBIOS = 'NWDE'
+$domainNETBIOS = 'CONTOSO'
 $domainBaseContext = 'dc=contoso,dc=com'
 
 #Mail settings
