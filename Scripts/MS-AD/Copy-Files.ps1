@@ -13,6 +13,7 @@ $curDir = (Get-Location).Path
 $tempDir = $curDir + "\temp"
 $sourceMap = "i:"
 $destMap = "u:"
+$filter = "*.crl"
 
 #######################################################################################################################
 ########################################### Do not modify below #######################################################
@@ -37,7 +38,7 @@ foreach($source in $sources){
     $net.MapNetworkDrive($sourceMap, $source.share, $false, $source.username, $source.password)
 
     #Copy Items
-    Get-ChildItem -Path ($sourceMap + "\*") -Include "*.crl" | ForEach-Object {
+    Get-ChildItem -Path ($sourceMap + "\*") -Include $filter | ForEach-Object {
         Copy-Item -Path $_.FullName -Destination $tempDir -Force -Confirm:$false
     }
 
@@ -52,7 +53,7 @@ foreach($destination in $destinations){
     $net.MapNetworkDrive($destMap, $destination.share, $false, $destination.username, $destination.password)
 
     #Copy Items
-    Get-ChildItem -Path ($tempDir + "\*") -Include "*.crl" | ForEach-Object {
+    Get-ChildItem -Path ($tempDir + "\*") | ForEach-Object {
         Copy-Item -Path $_.FullName -Destination ($destMap + "\") -Force -Confirm:$false
     }
 
