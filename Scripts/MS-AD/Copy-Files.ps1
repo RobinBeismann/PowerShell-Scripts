@@ -20,6 +20,9 @@ The Parameters "filter" and "recursive" are optional, while "share", "username" 
 For Shares without login requirement just speicfy username="" and password=""
 
 CAUTION:
+PLEASE MAKE SURE THAT THE SOURCE/DESTINATION MAP LETTERS ARE NOT IN USE BY ANY SHARES OR DRIVES AS THIS WILL CAUSE UNPREDICTABLE RESULTS
+AND MIGHT CAUSE DATALOSS!
+
 Please be aware that the force flag is set, so this script WILL overwrite any files at the destination which exist at the source.
 The last source in the config will always be the newest the highest priority for a file if it exists at multiple sources.
 So if "Disclaimer.docx" exists at source1 and "Disclaimer.docx" also exists at source 3 then the document on source 3 will overwrite 
@@ -30,12 +33,16 @@ it will be overwritten by source 3.
 
 $curDir = (Get-Location).Path
 $tempDir = $curDir + "\temp"
-$sourceMap = "i:"
-$destMap = "u:"
+$sourceMap = "B:"
+$destMap = "B:"
 
 #######################################################################################################################
 ########################################### Do not modify below #######################################################
 #######################################################################################################################
+if( (Test-Path -Path $sourceMap) -or (Test-Path -Path $destMap) ){
+	Write-Host("ERROR: Source or Destination Mapping Letter is already in use! Exiting the script.")
+	exit
+}
 
 #Define Varaibles
 [xml]$config = Get-Content -Path ($curDir + "\config.xml")
