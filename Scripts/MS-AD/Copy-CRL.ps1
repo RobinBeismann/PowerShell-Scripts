@@ -61,7 +61,6 @@ foreach($destination in $destinations){
     $net = New-Object -ComObject WScript.Network
     $net.MapNetworkDrive($destMap, $destination.share, $false, $destination.username, $destination.password)
 
-
     #Copy Items
     Get-ChildItem -Path ($tempDir + "\*") -Include @("*.crl", "*.crt") | ForEach-Object {
         Copy-Item -Path $_.FullName -Destination ($destMap + "\") -Force -Confirm:$false
