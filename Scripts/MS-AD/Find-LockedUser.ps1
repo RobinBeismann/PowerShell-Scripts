@@ -60,8 +60,6 @@ if($dn = (Get-ADUser -Filter {sAMAccountName -eq $username} ).DistinguishedName)
             if($event.ReplacementStrings[0] -eq $username){
 	
                 $IP = $event.ReplacementStrings[0]
-                #Strip the pseudo IPv6 Part out of it
-                $IP = $IP.Replace("::ffff:","")
 
                 #Do a reverse dns lookup for the hostname
                 $hostname = $event.ReplacementStrings[1]
