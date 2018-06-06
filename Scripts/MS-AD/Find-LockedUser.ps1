@@ -26,7 +26,7 @@ if($dn = (Get-ADUser -Filter {sAMAccountName -eq $username} ).DistinguishedName)
     
     #Start gathering the DCs Eventlog and search for EventID 4771 (Kerberos Preauthentication failed)
     $events = @()
-    Get-EventLog -ComputerName $lastLockedDC -LogName Security -EntryType FailureAudit | Where-Object { $_.EventID -eq "4771" } |
+    Get-EventLog -ComputerName $lastLockedDC -LogName Security -EntryType FailureAudit,SuccessAudit | Where-Object { $_.EventID -eq "4771" -or $_.EventID -eq "4740" } |
     ForEach-Object {
         #This looks dirty in the first place but is a way better (and faster) then the -After Parameter, as the original parameter doesn't stop after reaching the date but keeps going until it reachs the end of the log.
         $events += $_
@@ -37,25 +37,45 @@ if($dn = (Get-ADUser -Filter {sAMAccountName -eq $username} ).DistinguishedName)
 
     $failedLogins = @()
     foreach($event in $events){
-        if($event.ReplacementStrings[0] -eq $username){
-            $IP = $event.ReplacementStrings[6]
-            #Strip the pseudo IPv6 Part out of it
-            $IP = $IP.Replace("::ffff:","")
+        if($event.EventID -eq "4771"){
+            if($event.ReplacementStrings[0] -eq $username){
+                $IP = $event.ReplacementStrings[6]
+                #Strip the pseudo IPv6 Part out of it
+                $IP = $IP.Replace("::ffff:","")
 
-            #Do a reverse dns lookup for the hostname
-            $hostname = [System.Net.Dns]::GetHostByAddress($IP).HostName
+                #Do a reverse dns lookup for the hostname
+                $hostname = [System.Net.Dns]::GetHostByAddress($IP).HostName
             
-            #Build a report object
-            $Object = New-Object PSObject                                  
-            $Object | Add-Member Noteproperty Time (Get-Date $event.TimeGenerated -Format "s")           
-            $Object | Add-Member Noteproperty Username $username                 
-            $Object | Add-Member Noteproperty Hostname $hostname                 
-            $Object | Add-Member Noteproperty IP $IP
+                #Build a report object
+                $Object = New-Object PSObject                                  
+                $Object | Add-Member Noteproperty Time (Get-Date $event.TimeGenerated -Format "s")           
+                $Object | Add-Member Noteproperty Username $username                 
+                $Object | Add-Member Noteproperty Hostname $hostname                 
+                $Object | Add-Member Noteproperty IP $IP
             
-            #Add the object to the failed login array
-            $failedLogins += $Object 
+                #Add the object to the failed login array
+                $failedLogins += $Object 
+            }
+        }elseif($event.EventID -eq "4740"){
+            if($event.ReplacementStrings[0] -eq $username){
+	
+                $IP = $event.ReplacementStrings[0]
+                #Strip the pseudo IPv6 Part out of it
+                $IP = $IP.Replace("::ffff:","")
+
+                #Do a reverse dns lookup for the hostname
+                $hostname = $event.ReplacementStrings[1]
+            
+                #Build a report object
+                $Object = New-Object PSObject                                  
+                $Object | Add-Member Noteproperty Time (Get-Date $event.TimeGenerated -Format "s")           
+                $Object | Add-Member Noteproperty Username $username                 
+                $Object | Add-Member Noteproperty Hostname $hostname                 
+                $Object | Add-Member Noteproperty IP ([System.Net.Dns]::GetHostByName($hostname).AddressList.IPAddressToString)
+
+                $failedLogins += $Object 
+            }
         }
-
     }
 
     #Export it
@@ -64,4 +84,3 @@ if($dn = (Get-ADUser -Filter {sAMAccountName -eq $username} ).DistinguishedName)
 }else{
     Write-Host("User not found.")
 }
-
