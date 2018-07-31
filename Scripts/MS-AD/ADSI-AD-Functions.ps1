@@ -10,7 +10,6 @@ function Get-ADObjects{
   param
   (
     [Parameter(Mandatory=$true,HelpMessage='Supply object class')][string]$class,
-
     [Parameter(Mandatory=$true,HelpMessage='Supply the domain DNS name')][string]$domainName
   )
   $domainContext = New-Object -TypeName System.DirectoryServices.ActiveDirectory.DirectoryContext -ArgumentList ('Domain', $domainName)
@@ -26,7 +25,6 @@ function Get-ADObjectsAcrossTrust{
   param
   (
     [Parameter(Mandatory=$true,HelpMessage='Supply object class')][string]$class,
-
     [string]$optionalFilter
   )
   $objects = @()
@@ -155,7 +153,6 @@ function Add-GroupMemberBySid{
   param
   (
     [Parameter(Mandatory=$true,HelpMessage='Supply the groups distinguishedName')][string]$GroupDN,
-
     [Parameter(Mandatory=$true,HelpMessage='Supply the SID of the object to add')][object]$MemberSid
   )
   $sid = $MemberSid | Select-Object
@@ -183,7 +180,6 @@ function Add-GroupMember{
   param
   (
     [Parameter(Mandatory=$true,HelpMessage='Supply the groups distinguishedName')][string]$GroupDN,
-
     [Parameter(Mandatory=$true,HelpMessage='Supply the DN of the object to add')][string]$MemberDN
   )
   $group = [adsi]"LDAP://$GroupDN"
@@ -195,7 +191,6 @@ function Remove-GroupMember{
   param
   (
     [Parameter(Mandatory=$true,HelpMessage='Supply the groups distinguishedName')][string]$GroupDN,
-
     [Parameter(Mandatory=$true,HelpMessage='Supply the SID of the object to remove')][string]$MemberDN
   )
   $group = [adsi]"LDAP://$GroupDN"
