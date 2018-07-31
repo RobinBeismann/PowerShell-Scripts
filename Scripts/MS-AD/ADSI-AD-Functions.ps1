@@ -1,5 +1,4 @@
-function Get-ADObject{
-    
+function Get-ADObject{    
   param
   (
     [Parameter(Mandatory=$true,HelpMessage='Supply object DN')][string]$ObjectDN
@@ -7,8 +6,7 @@ function Get-ADObject{
   return ([adsi]"LDAP://$ObjectDN")
 }
 
-function Get-ADObjects{
-    
+function Get-ADObjects{    
   param
   (
     [Parameter(Mandatory=$true,HelpMessage='Supply object class')][string]$class,
@@ -24,8 +22,7 @@ function Get-ADObjects{
   return $ds.FindAll()
 }
 
-function Get-ADObjectsAcrossTrust{
-    
+function Get-ADObjectsAcrossTrust{    
   param
   (
     [Parameter(Mandatory=$true,HelpMessage='Supply object class')][string]$class,
@@ -73,8 +70,7 @@ function Get-ADObjectsAcrossTrust{
   return $objects
 }
 
-function Get-GroupMember{
-    
+function Get-GroupMember{    
   param
   (
     [Parameter(Mandatory=$true,HelpMessage='Supply the groups distinguishedName')][string]$GroupDN
@@ -82,8 +78,7 @@ function Get-GroupMember{
   return ([adsi]"LDAP://$GroupDN") | Select-Object -ExpandProperty member
 }
 
-function Get-GroupMemberAcrossTrust{
-    
+function Get-GroupMemberAcrossTrust{    
   param
   (
     [Parameter(Mandatory=$true,HelpMessage='Supply the groups distinguishedName')][string]$GroupDN
@@ -102,8 +97,7 @@ function Get-GroupMemberAcrossTrust{
   }
 }
 
-function Get-GroupMemberByNetBIOS{
-    
+function Get-GroupMemberByNetBIOS{    
   param
   (
     [Parameter(Mandatory=$true,HelpMessage='Supply the groups distinguishedName')][string]$GroupDN
@@ -126,8 +120,7 @@ function Get-GroupMemberByNetBIOS{
   }
 }
 
-function Get-ADObjectByNetBIOS{
-    
+function Get-ADObjectByNetBIOS{    
   param
   (
     [Parameter(Mandatory=$true,HelpMessage='Supply the AD Objects NetBIOS Path')][string]$path
@@ -136,9 +129,7 @@ function Get-ADObjectByNetBIOS{
   $Domain = $Split[0]
   $User = $Split[1]
 
-
-  (Get-TrustedDomainsByNetBIOS).GetEnumerator() | ForEach-Object {
-    
+  (Get-TrustedDomainsByNetBIOS).GetEnumerator() | ForEach-Object {    
     $ds = [adsisearcher]$_.Value
     $ds.Filter = "(&(sAMAccountName=$User)(!(msExchMasterAccountSid=*)))"
     $null = $ds.PropertiesToLoad.Add('name')
@@ -160,8 +151,7 @@ function Get-ADObjectByNetBIOS{
   }
 }
 
-function Add-GroupMemberBySid{
-    
+function Add-GroupMemberBySid{    
   param
   (
     [Parameter(Mandatory=$true,HelpMessage='Supply the groups distinguishedName')][string]$GroupDN,
@@ -175,8 +165,7 @@ function Add-GroupMemberBySid{
   return $group.Add("LDAP://<SID=$hexString>")
 }
 
-function Remove-GroupMemberBySid{
-    
+function Remove-GroupMemberBySid{    
   param
   (
     [Parameter(Mandatory=$true,HelpMessage='Supply the groups distinguishedName')][string]$GroupDN,
@@ -190,8 +179,7 @@ function Remove-GroupMemberBySid{
   return $group.Remove("LDAP://<SID=$hexString>")
 }
 
-function Add-GroupMember{
-    
+function Add-GroupMember{    
   param
   (
     [Parameter(Mandatory=$true,HelpMessage='Supply the groups distinguishedName')][string]$GroupDN,
@@ -203,8 +191,7 @@ function Add-GroupMember{
   return $group.Add($User.path)
 }
 
-function Remove-GroupMember{
-    
+function Remove-GroupMember{    
   param
   (
     [Parameter(Mandatory=$true,HelpMessage='Supply the groups distinguishedName')][string]$GroupDN,
@@ -216,8 +203,7 @@ function Remove-GroupMember{
   return $group.Remove($User.path)
 }
 
-function Resolve-Sid{
-    
+function Resolve-Sid{    
   param
   (
     [Parameter(Mandatory=$true,HelpMessage='Supply the SID of the object to resolve')][string]$sid
@@ -235,8 +221,7 @@ function Get-TrustedDomainsByNetBIOS(){
     
   $searcher=[ADSIsearcher]'(objectclass=trustedDomain)'
   $searcher.searchroot.Path="LDAP://$($env:USERDNSDOMAIN)"
-    
-    
+        
   $searcher.FindAll() | ForEach-Object {
     $domainContext = New-Object -TypeName System.DirectoryServices.ActiveDirectory.DirectoryContext -ArgumentList ('Domain', $_.Properties.name)
     $domain = [DirectoryServices.ActiveDirectory.Domain]::GetDomain($domainContext)
@@ -254,15 +239,12 @@ function Get-ADTrustedObjectsByDN(){
 
   $table = @{}
 
-  $users | ForEach-Object {
-        
+  $users | ForEach-Object {     
     $dn = $_.Properties.distinguishedname[0]
-
     $table[$dn] = $_ 
   }
 
   $groups | ForEach-Object {
-        
     $dn = $_.Properties.distinguishedname[0]
 
     $table[$dn] = $_ 
