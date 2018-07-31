@@ -1,202 +1,272 @@
-function Get-ADObject($ObjectDN){
-    return ([adsi]"LDAP://$ObjectDN")
+function Get-ADObject{
+    
+  param
+  (
+    [Parameter(Mandatory=$true,HelpMessage='Supply object DN')][string]$ObjectDN
+  )
+  return ([adsi]"LDAP://$ObjectDN")
 }
 
-function Get-ADObjects($class,$domainName){
-    $domainContext = New-Object System.DirectoryServices.ActiveDirectory.DirectoryContext("Domain", $domainName)
-    $domain = [System.DirectoryServices.ActiveDirectory.Domain]::GetDomain($domainContext)
+function Get-ADObjects{
+    
+  param
+  (
+    [Parameter(Mandatory=$true,HelpMessage='Supply object class')][string]$class,
+
+    [Parameter(Mandatory=$true,HelpMessage='Supply the domain DNS name')][string]$domainName
+  )
+  $domainContext = New-Object -TypeName System.DirectoryServices.ActiveDirectory.DirectoryContext -ArgumentList ('Domain', $domainName)
+  $domain = [DirectoryServices.ActiveDirectory.Domain]::GetDomain($domainContext)
+  $root = $domain.GetDirectoryEntry()
+  $ds = [adsisearcher]$root
+  $ds.Filter = "(&(objectCategory=$class))"
+
+  return $ds.FindAll()
+}
+
+function Get-ADObjectsAcrossTrust{
+    
+  param
+  (
+    [Parameter(Mandatory=$true,HelpMessage='Supply object class')][string]$class,
+
+    [string]$optionalFilter
+  )
+  $objects = @()
+
+  $domainNames = @()
+
+  (Get-TrustedDomainsByNetBIOS).GetEnumerator() | ForEach-Object { 
+    $domainNames += $_.Value.Properties.name
+  }
+  $domainNames += $env:USERDNSDOMAIN
+
+  $domainNames | ForEach-Object {
+    $domainName = $_
+    $domainContext = New-Object -TypeName System.DirectoryServices.ActiveDirectory.DirectoryContext -ArgumentList ('Domain', $domainName)
+    $domain = [DirectoryServices.ActiveDirectory.Domain]::GetDomain($domainContext)
     $root = $domain.GetDirectoryEntry()
     $ds = [adsisearcher]$root
-    $ds.Filter = "(&(objectCategory=$class))"
+    $ds.Filter = "(&(objectCategory=$class)(!(msExchMasterAccountSid=*))$optionalfilter)"
+    $null = $ds.PropertiesToLoad.Add('name')
+    $null = $ds.PropertiesToLoad.Add('displayname')
+    $null = $ds.PropertiesToLoad.Add('description')
+    $null = $ds.PropertiesToLoad.Add('distinguishedname')
+    $null = $ds.PropertiesToLoad.Add('samaccountname')
+    $null = $ds.PropertiesToLoad.Add('userprincipalname')
+    $null = $ds.PropertiesToLoad.Add('mail')
+    $null = $ds.PropertiesToLoad.Add('memberof')
+    $null = $ds.PropertiesToLoad.Add('member')
+    $null = $ds.PropertiesToLoad.Add('title')
+    $null = $ds.PropertiesToLoad.Add('cn')
+    $null = $ds.PropertiesToLoad.Add('objectSid')
 
-    return $ds.FindAll()
-}
+    $ds.PageSize = 20000
 
-function Get-ADObjectsAcrossTrust($class,$optionalFilter){
-    $objects = @()
-
-    $domainNames = @()
-
-    (Get-TrustedDomainsByNetBIOS).GetEnumerator() | ForEach-Object { 
-        $domainNames += $_.Value.Properties.name
+    $ds.FindAll().GetEnumerator() | ForEach-Object {
+      $_.Properties.NETBIOSName = $domainName
+      $objects += $_
     }
-    $domainNames += $env:USERDNSDOMAIN
-
-    $domainNames | ForEach-Object {
-        $domainName = $_
-        $domainContext = New-Object System.DirectoryServices.ActiveDirectory.DirectoryContext("Domain", $domainName)
-        $domain = [System.DirectoryServices.ActiveDirectory.Domain]::GetDomain($domainContext)
-        $root = $domain.GetDirectoryEntry()
-        $ds = [adsisearcher]$root
-        $ds.Filter = "(&(objectCategory=$class)(!(msExchMasterAccountSid=*))$optionalfilter)"
-        $ds.PropertiesToLoad.Add("name") | Out-Null
-        $ds.PropertiesToLoad.Add("displayname") | Out-Null
-        $ds.PropertiesToLoad.Add("description") | Out-Null
-        $ds.PropertiesToLoad.Add("distinguishedname") | Out-Null
-        $ds.PropertiesToLoad.Add("samaccountname") | Out-Null
-        $ds.PropertiesToLoad.Add("userprincipalname") | Out-Null
-        $ds.PropertiesToLoad.Add("mail") | Out-Null
-        $ds.PropertiesToLoad.Add("memberof") | Out-Null
-        $ds.PropertiesToLoad.Add("member") | Out-Null
-        $ds.PropertiesToLoad.Add("title") | Out-Null
-        $ds.PropertiesToLoad.Add("cn") | Out-Null
-        $ds.PropertiesToLoad.Add("objectSid") | Out-Null
-
-        $ds.PageSize = 20000
-
-        $ds.FindAll().GetEnumerator() | ForEach-Object {
-            $_.Properties.NETBIOSName = $domainName
-            $objects += $_
-        }
-    }
+  }
     
 
-    return $objects
+  return $objects
 }
 
-function Get-GroupMember($GroupDN){
-    return ([adsi]"LDAP://$GroupDN") | Select-Object -ExpandProperty member
+function Get-GroupMember{
+    
+  param
+  (
+    [Parameter(Mandatory=$true,HelpMessage='Supply the groups distinguishedName')][string]$GroupDN
+  )
+  return ([adsi]"LDAP://$GroupDN") | Select-Object -ExpandProperty member
 }
 
-function Get-GroupMemberAcrossTrust($GroupDN){
-    $pattern = "^CN=(.*?),.*$"
+function Get-GroupMemberAcrossTrust{
+    
+  param
+  (
+    [Parameter(Mandatory=$true,HelpMessage='Supply the groups distinguishedName')][string]$GroupDN
+  )
+  $pattern = '^CN=(.*?),.*$'
 
-    $members = ([adsi]"LDAP://$GroupDN") | Select-Object -ExpandProperty member
-    $members | ForEach-Object {
-        if( $_.Contains("CN=ForeignSecurityPrincipals") ){          
-            $result = [regex]::Match($_,$pattern)
+  $members = ([adsi]"LDAP://$GroupDN") | Select-Object -ExpandProperty member
+  $members | ForEach-Object {
+    if( $_.Contains('CN=ForeignSecurityPrincipals') ){          
+      $result = [regex]::Match($_,$pattern)
                
-            Get-ADObjectByNetBIOS -path (Resolve-Sid -sid $result.Groups[1].Value)
-        }else{
-            $_
-        }
+      Get-ADObjectByNetBIOS -path (Resolve-Sid -sid $result.Groups[1].Value)
+    }else{
+      $_
     }
+  }
 }
 
-function Get-GroupMemberByNetBIOS($GroupDN){
-    $pattern = "^CN=(.*?),.*$"
-
-    $members = ([adsi]"LDAP://$GroupDN") | Select-Object -ExpandProperty member
-    $members | ForEach-Object {
-        if( $_.Contains("CN=ForeignSecurityPrincipals") ){          
-            $result = [regex]::Match($_,$pattern)
-            Write-Host(Resolve-Sid -sid $result.Groups[0])    
-        }else{
-            $obj = (Get-ADObject -ObjectDN $_) | Select-Object -Property SchemaClassName, sAMAccountName
-            if($obj.SchemaClassName -ne "group"){
-                ($env:USERDOMAIN + "\" + $obj.sAMAccountName[0])
-            }else{
-                ("+" + $env:USERDOMAIN + "\" + $obj.sAMAccountName[0])
-            }
-        }
-    }
-}
-
-function Get-ADObjectByNetBIOS($path){
-    $Split = $path.Split("\")
-    $Domain = $Split[0]
-    $User = $Split[1]
-
-
-    (Get-TrustedDomainsByNetBIOS).GetEnumerator() | ForEach-Object {
+function Get-GroupMemberByNetBIOS{
     
-        $ds = [adsisearcher]$_.Value
-        $ds.Filter = "(&(sAMAccountName=$User)(!(msExchMasterAccountSid=*)))"
-        $ds.PropertiesToLoad.Add("name") | Out-Null
-        $ds.PropertiesToLoad.Add("displayname") | Out-Null
-        $ds.PropertiesToLoad.Add("description") | Out-Null
-        $ds.PropertiesToLoad.Add("distinguishedname") | Out-Null
-        $ds.PropertiesToLoad.Add("samaccountname") | Out-Null
-        $ds.PropertiesToLoad.Add("userprincipalname") | Out-Null
-        $ds.PropertiesToLoad.Add("mail") | Out-Null
-        $ds.PropertiesToLoad.Add("memberof") | Out-Null
-        $ds.PropertiesToLoad.Add("member") | Out-Null
-        $ds.PropertiesToLoad.Add("title") | Out-Null
-        $ds.PropertiesToLoad.Add("cn") | Out-Null
-        $ds.PageSize = 20000
+  param
+  (
+    [Parameter(Mandatory=$true,HelpMessage='Supply the groups distinguishedName')][string]$GroupDN
+  )
+  $pattern = '^CN=(.*?),.*$'
 
-        $ds.FindOne() | ForEach-Object {
-            return $_.Properties.distinguishedname
-        }
+  $members = ([adsi]"LDAP://$GroupDN") | Select-Object -ExpandProperty member
+  $members | ForEach-Object {
+    if( $_.Contains('CN=ForeignSecurityPrincipals') ){          
+      $result = [regex]::Match($_,$pattern)
+      Write-Host(Resolve-Sid -sid $result.Groups[0])    
+    }else{
+      $obj = (Get-ADObject -ObjectDN $_) | Select-Object -Property SchemaClassName, sAMAccountName
+      if($obj.SchemaClassName -ne 'group'){
+        ($env:USERDOMAIN + '\' + $obj.sAMAccountName[0])
+      }else{
+        ('+' + $env:USERDOMAIN + '\' + $obj.sAMAccountName[0])
+      }
     }
+  }
 }
 
-function Add-GroupMemberBySid($GroupDN,$MemberSid){
-    $sid = $MemberSid | Select-Object
-    $sidObj = New-Object System.Security.Principal.SecurityIdentifier($sid,0)
-    $hexString = ($sid|ForEach-Object ToString X2) -join ''
+function Get-ADObjectByNetBIOS{
+    
+  param
+  (
+    [Parameter(Mandatory=$true,HelpMessage='Supply the AD Objects NetBIOS Path')][string]$path
+  )
+  $Split = $path.Split('\')
+  $Domain = $Split[0]
+  $User = $Split[1]
 
-    $group = [adsi]"LDAP://$GroupDN"
-    return $group.Add("LDAP://<SID=$hexString>")
-}
 
-function Remove-GroupMemberBySid($GroupDN,$MemberSid){
-    $sid = $MemberSid | Select-Object
-    $sidObj = New-Object System.Security.Principal.SecurityIdentifier($sid,0)
-    $hexString = ($sid|ForEach-Object ToString X2) -join ''
+  (Get-TrustedDomainsByNetBIOS).GetEnumerator() | ForEach-Object {
+    
+    $ds = [adsisearcher]$_.Value
+    $ds.Filter = "(&(sAMAccountName=$User)(!(msExchMasterAccountSid=*)))"
+    $null = $ds.PropertiesToLoad.Add('name')
+    $null = $ds.PropertiesToLoad.Add('displayname')
+    $null = $ds.PropertiesToLoad.Add('description')
+    $null = $ds.PropertiesToLoad.Add('distinguishedname')
+    $null = $ds.PropertiesToLoad.Add('samaccountname')
+    $null = $ds.PropertiesToLoad.Add('userprincipalname')
+    $null = $ds.PropertiesToLoad.Add('mail')
+    $null = $ds.PropertiesToLoad.Add('memberof')
+    $null = $ds.PropertiesToLoad.Add('member')
+    $null = $ds.PropertiesToLoad.Add('title')
+    $null = $ds.PropertiesToLoad.Add('cn')
+    $ds.PageSize = 20000
 
-    $group = [adsi]"LDAP://$GroupDN"
-    return $group.Remove("LDAP://<SID=$hexString>")
-}
-
-function Add-GroupMember($GroupDN,$MemberDN){
-    $group = [adsi]"LDAP://$GroupDN"
-    $user = [adsi]"LDAP://$MemberDN"
-    return $group.Add($User.path)
-}
-
-function Remove-GroupMember($GroupDN,$MemberDN){
-    $group = [adsi]"LDAP://$GroupDN"
-    $user = [adsi]"LDAP://$MemberDN"
-    return $group.Remove($User.path)
-}
-
-function Resolve-Sid($sid){
-    try{
-        return (New-Object System.Security.Principal.SecurityIdentifier($sid)).Translate([System.Security.Principal.NTAccount]).Value
-    }catch{
-        return $false
+    $ds.FindOne() | ForEach-Object {
+      return $_.Properties.distinguishedname
     }
+  }
+}
+
+function Add-GroupMemberBySid{
+    
+  param
+  (
+    [Parameter(Mandatory=$true,HelpMessage='Supply the groups distinguishedName')][string]$GroupDN,
+
+    [Parameter(Mandatory=$true,HelpMessage='Supply the SID of the object to add')][object]$MemberSid
+  )
+  $sid = $MemberSid | Select-Object
+  $hexString = ($sid | ForEach-Object { $_.ToString('X2') }) -join ''
+
+  $group = [adsi]"LDAP://$GroupDN"
+  return $group.Add("LDAP://<SID=$hexString>")
+}
+
+function Remove-GroupMemberBySid{
+    
+  param
+  (
+    [Parameter(Mandatory=$true,HelpMessage='Supply the groups distinguishedName')][string]$GroupDN,
+
+    [Parameter(Mandatory=$true,HelpMessage='Supply the SID of the object to remove')][object]$MemberSid
+  )
+  $sid = $MemberSid | Select-Object
+  $hexString = ($sid | ForEach-Object { $_.ToString('X2') }) -join ''
+
+  $group = [adsi]"LDAP://$GroupDN"
+  return $group.Remove("LDAP://<SID=$hexString>")
+}
+
+function Add-GroupMember{
+    
+  param
+  (
+    [Parameter(Mandatory=$true,HelpMessage='Supply the groups distinguishedName')][string]$GroupDN,
+
+    [Parameter(Mandatory=$true,HelpMessage='Supply the DN of the object to add')][string]$MemberDN
+  )
+  $group = [adsi]"LDAP://$GroupDN"
+  $user = [adsi]"LDAP://$MemberDN"
+  return $group.Add($User.path)
+}
+
+function Remove-GroupMember{
+    
+  param
+  (
+    [Parameter(Mandatory=$true,HelpMessage='Supply the groups distinguishedName')][string]$GroupDN,
+
+    [Parameter(Mandatory=$true,HelpMessage='Supply the SID of the object to remove')][string]$MemberDN
+  )
+  $group = [adsi]"LDAP://$GroupDN"
+  $user = [adsi]"LDAP://$MemberDN"
+  return $group.Remove($User.path)
+}
+
+function Resolve-Sid{
+    
+  param
+  (
+    [Parameter(Mandatory=$true,HelpMessage='Supply the SID of the object to resolve')][string]$sid
+  )
+  try{
+    return (New-Object -TypeName System.Security.Principal.SecurityIdentifier -ArgumentList ($sid)).Translate([Security.Principal.NTAccount]).Value
+  }catch{
+    return $false
+  }
 }
 
 function Get-TrustedDomainsByNetBIOS(){
 
-    $returnArray = @{}
+  $returnArray = @{}
     
-    $searcher=[ADSIsearcher]"(objectclass=trustedDomain)"
-    $searcher.searchroot.Path="LDAP://$($env:USERDNSDOMAIN)"
+  $searcher=[ADSIsearcher]'(objectclass=trustedDomain)'
+  $searcher.searchroot.Path="LDAP://$($env:USERDNSDOMAIN)"
     
     
-    $searcher.FindAll() | ForEach-Object {
-        $domainContext = New-Object System.DirectoryServices.ActiveDirectory.DirectoryContext("Domain", $_.Properties.name)
-        $domain = [System.DirectoryServices.ActiveDirectory.Domain]::GetDomain($domainContext)
-        $returnArray[($_.Properties.flatname[0])] = $domain.GetDirectoryEntry()
-    }
+  $searcher.FindAll() | ForEach-Object {
+    $domainContext = New-Object -TypeName System.DirectoryServices.ActiveDirectory.DirectoryContext -ArgumentList ('Domain', $_.Properties.name)
+    $domain = [DirectoryServices.ActiveDirectory.Domain]::GetDomain($domainContext)
+    $returnArray[($_.Properties.flatname[0])] = $domain.GetDirectoryEntry()
+  }
     
-    $returnArray[$env:USERDOMAIN] = [ADSI]"LDAP://$($env:USERDNSDOMAIN)"
+  $returnArray[$env:USERDOMAIN] = [ADSI]"LDAP://$($env:USERDNSDOMAIN)"
    
-    return $returnArray 
+  return $returnArray 
 }
 
 function Get-ADTrustedObjectsByDN(){
-    $groups = Get-ADObjectsAcrossTrust -class "group"
-    $users = Get-ADObjectsAcrossTrust -class "user" -optionalFilter "(mail=*)"
+  $groups = Get-ADObjectsAcrossTrust -class 'group'
+  $users = Get-ADObjectsAcrossTrust -class 'user' -optionalFilter '(mail=*)'
 
-    $table = @{}
+  $table = @{}
 
-    $users | ForEach-Object {
+  $users | ForEach-Object {
         
-        $dn = $_.Properties.distinguishedname[0]
+    $dn = $_.Properties.distinguishedname[0]
 
-        $table[$dn] = $_ 
-    }
+    $table[$dn] = $_ 
+  }
 
-    $groups | ForEach-Object {
+  $groups | ForEach-Object {
         
-        $dn = $_.Properties.distinguishedname[0]
+    $dn = $_.Properties.distinguishedname[0]
 
-        $table[$dn] = $_ 
-    }
+    $table[$dn] = $_ 
+  }
 
-    return $table
+  return $table
 }
