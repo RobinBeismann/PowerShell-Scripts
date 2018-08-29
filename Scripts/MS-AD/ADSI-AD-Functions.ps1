@@ -10,13 +10,14 @@ function Get-ADObjects{
   param
   (
     [Parameter(Mandatory=$true,HelpMessage='Supply object class')][string]$class,
-    [Parameter(Mandatory=$true,HelpMessage='Supply the domain DNS name')][string]$domainName
+    [Parameter(Mandatory=$true,HelpMessage='Supply the domain DNS name')][string]$domainName,
+    [string]$optionalFilter
   )
   $domainContext = New-Object -TypeName System.DirectoryServices.ActiveDirectory.DirectoryContext -ArgumentList ('Domain', $domainName)
   $domain = [DirectoryServices.ActiveDirectory.Domain]::GetDomain($domainContext)
   $root = $domain.GetDirectoryEntry()
   $ds = [adsisearcher]$root
-  $ds.Filter = "(&(objectCategory=$class))"
+  $ds.Filter = "(&(objectCategory=$class)$optionalFilter)"
 
   return $ds.FindAll()
 }
@@ -129,7 +130,7 @@ function Get-ADObjectByNetBIOS{
 
   (Get-TrustedDomainsByNetBIOS).GetEnumerator() | ForEach-Object {    
     $ds = [adsisearcher]$_.Value
-    $ds.Filter = "(&(sAMAccountName=$User)(!(msExchMasterAccountSid=*)))"
+    $ds.Filter = "(&(sAMAccountName=$User))"
     $null = $ds.PropertiesToLoad.Add('name')
     $null = $ds.PropertiesToLoad.Add('displayname')
     $null = $ds.PropertiesToLoad.Add('description')
@@ -191,7 +192,7 @@ function Remove-GroupMember{
   param
   (
     [Parameter(Mandatory=$true,HelpMessage='Supply the groups distinguishedName')][string]$GroupDN,
-    [Parameter(Mandatory=$true,HelpMessage='Supply the SID of the object to remove')][string]$MemberDN
+    [Parameter(Mandatory=$true,HelpMessage='Supply the DN of the object to remove')][string]$MemberDN
   )
   $group = [adsi]"LDAP://$GroupDN"
   $user = [adsi]"LDAP://$MemberDN"
@@ -230,7 +231,7 @@ function Get-TrustedDomainsByNetBIOS(){
 
 function Get-ADTrustedObjectsByDN(){
   $groups = Get-ADObjectsAcrossTrust -class 'group'
-  $users = Get-ADObjectsAcrossTrust -class 'user' -optionalFilter '(mail=*)'
+  $users = Get-ADObjectsAcrossTrust -class 'user' 
 
   $table = @{}
 
