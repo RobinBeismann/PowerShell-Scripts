@@ -150,6 +150,3 @@
 
 ### Get-ADTrustedObjectsByDN()
 	Returns: Returns all users and groups distinguishedNames of all trusted domains of the current domain as String Array, this operation may take some time depending on the connection and speed of the domain controllers.
-
-### Get-ADTrustedObjectsByDN()
-	Returns: Returns all users and groups distinguishedNames of all trusted domains of the current domain as String Array
