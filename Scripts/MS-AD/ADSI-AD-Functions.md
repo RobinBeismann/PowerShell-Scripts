@@ -148,9 +148,6 @@
 ### Get-TrustedDomainsByNetBIOS()      
 	Returns: Returns all trusted domains of the current domain as hashtable with the NETBIOS Domain Name as index
 
-### Get-TrustedDomainsByNetBIOS()      
-	Returns: Returns all trusted domains of the current domain as hashtable with the NETBIOS Domain Name as index
-
 ### Get-ADTrustedObjectsByDN()
 	Returns: Returns all users and groups distinguishedNames of all trusted domains of the current domain as String Array, this operation may take some time depending on the connection and speed of the domain controllers.
 
