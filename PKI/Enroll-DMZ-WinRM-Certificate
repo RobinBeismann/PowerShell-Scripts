@@ -52,9 +52,9 @@ $SignSigningRequest = {
     param(
           [Parameter(Mandatory=$true)][Object]$settings
     )
-            
-    $parameters = @('-config', $settings.CAPath, '-submit', '-attrib', ('CertificateTemplate:' + $settings.Template), $settings.rmCSRPath, $settings.rmCERPath)
-   
+           
+    $parameters = @('-config', ("`"" + $settings.CAPath + "`""), '-submit', '-attrib', ('CertificateTemplate:' + $settings.Template), $settings.rmCSRPath, $settings.rmCERPath)
+
     & "$env:windir\system32\certreq.exe" @parameters
 }
 $cleanTempFolder = {
@@ -179,21 +179,23 @@ _continue_ = "dns=$($certServer.Server)"
         #Build settings object
         $SigningServer = $CA.Value.Server
         $CAName = $CA.Value.CAName
+        $CAServer = $CA.Value.CAServer
+        $TrimmedCAName = $CAName.Replace(" ","_")
         
         
         $settings = @{
-            CSRPath = ($workdir + "\cert_$CAName.csr")
-            CERPath = ($workdir + "\cert_$CAName.cer")
+            CSRPath = ($workdir + "\cert_$TrimmedCAName.csr")
+            CERPath = ($workdir + "\cert_$TrimmedCAName.cer")
             Template = ($CA.Value.Template)
 
             rmTempPath = $globalTempPath
-            rmCSRPath = ($globalTempPath + "\cert_$CAName.csr")
-            rmCERPath = ($globalTempPath + "\cert_$CAName.cer")
-            rmRSPPath = ($globalTempPath + "\cert_$CAName.rsp")
-            rmRequestInfPath = ($globalTempPath + "\cert_$CAName.inf")
+            rmCSRPath = ($globalTempPath + "\cert_$TrimmedCAName.csr")
+            rmCERPath = ($globalTempPath + "\cert_$TrimmedCAName.cer")
+            rmRSPPath = ($globalTempPath + "\cert_$TrimmedCAName.rsp")
+            rmRequestInfPath = ($globalTempPath + "\cert_$TrimmedCAName.inf")
             inf = $inf
 
-            CAPath = ("$SigningServer\$CAName")
+            CAPath = ("$CAServer\$CAName")
             CAName = $CAName
         }
         
