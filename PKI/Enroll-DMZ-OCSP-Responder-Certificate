@@ -21,7 +21,7 @@ $CAs = @{
 
                     CAServer = 'caservername'          #The Server which hosts the issuing CA
                     CAName = 'caname'                  #The Common Name of the Issuing CA
-                    Template = 'OCSP Response Signing' #The OCSP Signing Certificate Template Name
+                    Template = 'OCSPResponseSigning' #The OCSP Signing Certificate Template Name
                  }
 }
 
