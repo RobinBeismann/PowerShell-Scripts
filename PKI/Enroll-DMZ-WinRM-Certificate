@@ -1,0 +1,255 @@
+#region Static Definitions
+$globalTempPath = 'C:\temp\'          #Temp Path on the cert and WinRM Jump Hosts
+
+$certs = @{
+     'uniqueIdentifier' = @{
+        Server = 'servername'
+        Username = 'username' #Needs access to the Computer's Certificate Store and Remote Management for WinRM
+        Password = ''
+    }
+}
+
+$CAs = @{
+    'uniqueIdentifier' = @{
+                    #WinRM Jumphost
+                    Server = 'servername' # Must be DNS or SPN resolveable
+                    Username = 'username' # This user also needs "Enroll" Permissions on the Certificate Template
+                    Password = 'password'
+
+                    CAServer = 'caservername'          #The Server which hosts the issuing CA
+                    CAName = 'caname'                  #The Common Name of the Issuing CA
+                    Template = 'BasicComputerCertificate' #The OCSP Signing Certificate Template Name
+                 }
+}
+
+#endregion
+
+#region Codeblocks
+$CreateSigningRequest = {
+    param(
+        [Parameter(Mandatory=$true)][Object]$settings
+    )
+
+    if(!(Test-Path -Path $settings.rmTempPath)){
+        New-Item -ItemType Directory -Path $settings.rmTempPath
+    }
+    if(Test-Path -Path $settings.rmCSRPath){
+        Remove-Item -Confirm:$false -Path $settings.rmCSRPath
+    }
+    if(Test-Path -Path $settings.rmCERPath){
+        Remove-Item -Confirm:$false -Path $settings.rmCERPath
+    }
+    if(Test-Path -Path $settings.rmRequestInfPath){
+        Remove-Item -Confirm:$false -Path $settings.rmRequestInfPath
+    }
+
+    $settings.inf | Out-File -FilePath $settings.rmRequestInfPath -Confirm:$false -Force
+
+    $parameters = @('-new', $settings.rmRequestInfPath, $settings.rmCSRPath)
+    & "$env:windir\system32\certreq.exe" @parameters
+}
+$SignSigningRequest = {
+    param(
+          [Parameter(Mandatory=$true)][Object]$settings
+    )
+            
+    $parameters = @('-config', $settings.CAPath, '-submit', '-attrib', ('CertificateTemplate:' + $settings.Template), $settings.rmCSRPath, $settings.rmCERPath)
+   
+    & "$env:windir\system32\certreq.exe" @parameters
+}
+$cleanTempFolder = {
+    param(
+          [Parameter(Mandatory=$true)][Object]$settings
+    )
+
+    if(!(Test-Path -Path $settings.rmTempPath)){
+        New-Item -ItemType Directory -Path $settings.rmTempPath
+    }
+    if(Test-Path -Path $settings.rmCSRPath){
+        Remove-Item -Confirm:$false -Path $settings.rmCSRPath
+    }
+    if(Test-Path -Path $settings.rmCERPath){
+        Remove-Item -Confirm:$false -Path $settings.rmCERPath
+    }
+
+    if(Test-Path -Path $settings.rmRSPPath){
+        Remove-Item -Confirm:$false -Path $settings.rmRSPPath
+    }
+}
+$importSignedCertificate = {
+    param(
+          [Parameter(Mandatory=$true)][Object]$settings
+    )
+            
+    $parameters = @('-accept', $settings.rmCERPath)
+    & "$env:windir\system32\certreq.exe" @parameters
+}
+$cleanExpiredCertificates = {
+    $now = Get-Date
+    Get-ChildItem -Path Cert:\LocalMachine\My |
+    ForEach-Object -Process { if ($PSItem.NotAfter -lt $now ) { $PSItem } } |
+    Remove-Item -Confirm:$false
+}
+$assignWinRMCertificate = {
+#Search the certificates
+Get-ChildItem "Cert:\LocalMachine\My" | 
+#Find the one with Server Authentication Extension
+Where-Object { $_.EnhancedKeyUsageList.FriendlyName -eq "Server Authentication" } | 
+#Sort by Cert Date
+Sort-Object -Property NotAfter -Descending | 
+#Select the one with the latest expire date
+Select-Object -First 1 | 
+#Process this certificate
+ForEach-Object { 
+    #Get the thumbprint and remove spaces
+    $thumbprint = $_.Thumbprint.Trim()
+    
+    #Just in case configure https
+    winrm quickconfig -transport:https -quiet
+
+    #Change the WinRM Certificate
+    & winrm.cmd @("set","winrm/config/Listener?Address=*+Transport=HTTPS", "@{Hostname=`"$($env:COMPUTERNAME)`";CertificateThumbprint=`"$thumbprint`"}")
+}
+}
+#endregion
+
+#region Code
+$scriptPath = (Get-Location).Path
+$Obj_PSCred = 'System.Management.Automation.PSCredential'
+
+#Create workdir
+$workdir = $scriptPath + '\certworkdir'
+if(Test-Path -Path $workdir){
+    Write-Host('Deleting old Workdir')
+    Remove-Item -Recurse -Confirm:$false -Path $workdir -Force | Out-Null
+}
+Write-Host('Creating new workdir')
+New-Item -ItemType Directory -Path $workdir | Out-Null
+
+foreach($certServer in $certs.GetEnumerator()){
+    $certServer = $certServer.Value
+
+    #Define Request Information, unable to align this with tabs
+    $inf = @"
+[NewRequest]
+Subject="CN=$((($certServer.Server).Split("."))[0])"
+PrivateKeyArchive=False
+Exportable=True
+UserProtected=False
+KeyLength = 2048
+MachineKeySet=True
+ProviderName="Microsoft Enhanced Cryptographic Provider v1.0"
+UseExistingKeySet=False
+RequestType=CMC
+[Extensions]
+2.5.29.17 = "{text}"
+_continue_ = "dns=$($certServer.Server)"
+"@
+
+    $certCredentials = $null
+
+    #Build credential object
+    if($certServer.Username -and $certServer.Password){
+        $secpasswd = ConvertTo-SecureString -String $certServer.Password -AsPlainText -Force
+        $certCredentials =  New-Object -TypeName $Obj_PSCred -ArgumentList ($certServer.Username, $secpasswd)
+    }
+
+    #Connect to this cert Responder Server
+    Write-Host('Establishing connection to cert Server ' + $certServer.Server)
+    if($certCredentials){
+        if(!($certSession = New-PSSession -ComputerName $certServer.Server -Credential $certCredentials -UseSSL)){
+            #Initially connect using non SSL
+            $certSession = New-PSSession -ComputerName $certServer.Server -Credential $certCredentials
+        }     
+    }else{
+        $certSession = New-PSSession -ComputerName $certServer.Server
+    }
+    if(!$certSession){
+        Write-Error -Message ('Could not establish PSRemote Session to cert Server, breaking.')
+        exit
+    }
+    Write-Host('Established connection to cert Server ' + $certServer.Server)
+    
+
+    foreach($CA in $CAs.GetEnumerator()){
+        #Build credential object
+        $secpasswd = ConvertTo-SecureString -String $CA.Value.Password -AsPlainText -Force
+        $CACredentials =  New-Object -TypeName $Obj_PSCred -ArgumentList ($CA.Value.Username, $secpasswd)
+
+        #Build settings object
+        $SigningServer = $CA.Value.Server
+        $CAName = $CA.Value.CAName
+        
+        
+        $settings = @{
+            CSRPath = ($workdir + "\cert_$CAName.csr")
+            CERPath = ($workdir + "\cert_$CAName.cer")
+            Template = ($CA.Value.Template)
+
+            rmTempPath = $globalTempPath
+            rmCSRPath = ($globalTempPath + "\cert_$CAName.csr")
+            rmCERPath = ($globalTempPath + "\cert_$CAName.cer")
+            rmRSPPath = ($globalTempPath + "\cert_$CAName.rsp")
+            rmRequestInfPath = ($globalTempPath + "\cert_$CAName.inf")
+            inf = $inf
+
+            CAPath = ("$SigningServer\$CAName")
+            CAName = $CAName
+        }
+        
+        #Connect to the Signing Jumphost
+        $SigningSession = New-PSSession -ComputerName $SigningServer -Credential $CACredentials
+        Write-Host('Establishing connection to Signing Server ' + $SigningServer)
+
+        if($SigningSession){
+            #Create Signing Request on cert Server
+            Write-Host("Creating Signing Request for $CAName on " + $certServer.Server)
+            Invoke-Command -Session $certSession -ArgumentList $settings -ScriptBlock $CreateSigningRequest
+
+            #Copy CSR from cert Server
+            Write-Host('Copying CSR from ' + $certServer.Server)
+            Copy-Item -FromSession $certSession -Path $settings.rmCSRPath -Destination $settings.CSRPath
+        
+            #Clean/Create Tempfolder
+            Write-Host("Creating tempfolder on $SigningServer")
+            Invoke-Command -Session $SigningSession -ArgumentList $settings -ScriptBlock $cleanTempFolder
+
+            #Copy CSR onto destination WinRM Server
+            Write-Host("Copying CSR onto $SigningServer")
+            Copy-Item -ToSession $SigningSession -Path $settings.CSRPath -Destination $settings.rmCSRPath
+
+            #Sign the CSR File
+            Write-Host("Signing $($settings.CSRPath) by " + $settings.CAName)
+            Invoke-Command -Session $SigningSession -ArgumentList $settings -ScriptBlock $SignSigningRequest
+
+            #Retrieve the signed certificate
+            Write-Host('Copying signed certificate back to ' + $settings.CERPath)
+            Copy-Item -FromSession $SigningSession -Path $settings.rmCERPath -Destination $settings.CERPath -Confirm:$false
+
+            #Copy it onto the cert Machine
+            Write-Host('Copying signed certificate onto ' + $certServer.Server + ' at ' + $settings.rmCERPath)
+            Copy-Item -ToSession $certSession -Path $settings.CERPath -Destination $settings.rmCERPath -Confirm:$false
+
+            #Import the signed certifciate
+            Write-Host("Importing $($settings.rmCERPath) into LocalMachine Computer Certificates on " + $certServer.Server)
+            Invoke-Command -Session $certSession -ArgumentList $settings -ScriptBlock $importSignedCertificate
+                    
+            #Assign WinRM Certificate
+            Write-Host("Changing WinRM Certificate on " + $certServer.Server)
+            Invoke-Command -Session $certSession -ArgumentList $settings -ScriptBlock $assignWinRMCertificate
+
+            #Disconnect from the WinRM Jumphost
+            Write-Host("Close Remoting Session to $SigningServer")
+            Disconnect-PSSession -Session $SigningSession | Out-Null
+        }else{
+            Write-Host('Could not establish connection to ' + $SigningServer)
+        }
+
+    }
+    Write-Host('Removing expired certificates on ' + $certServer.Server)
+    Invoke-Command -Session $certSession -ScriptBlock $cleanExpiredCertificates
+    
+    Write-Host('Close Remoting Session to ' + $certServer.Server)
+    Disconnect-PSSession -Session $certSession | Out-Null
+}
+#endregion
