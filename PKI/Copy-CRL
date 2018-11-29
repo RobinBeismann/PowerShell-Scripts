@@ -1,0 +1,145 @@
+<#----------------------------------------------------------------------------------------------------------------------------
+August 2017 / November 2018 - Robin Beismann
+This script was built to copys CRLs from the different CAs onto the DMZ Webserver(s)
+
+config.xml may look like:
+<Config>
+	<source share="<to be filled>" username="<to be filled>" password="<to be filled>"/>
+	<destination share="<to be filled>" username="<to be filled>" password="<to be filled>"/>
+	<destination share="<to be filled>" username="<to be filled>" password="<to be filled>"/>
+</Config>
+
+The username and password fields are optional, if they're not filled, the script will use the current session
+----------------------------------------------------------------------------------------------------------------------------#>
+
+$curDir = (Get-Location).Path
+$tempDir = $curDir + "\temp"
+$sourceMapDrive = "i"
+$destMapDrive = "u"
+
+$mailRecipient = "infomail@example.com"
+$mailSender = $env:COMPUTERNAME + "@" + $env:USERDNSDOMAIN
+$mailSmtpServer = "relay"
+
+$err = $null
+
+#######################################################################################################################
+########################################### Do not modify below #######################################################
+#######################################################################################################################
+
+#Define Variables
+[xml]$config = Get-Content -Path ($curDir + "\config.xml")
+$sources = $config.Config.source
+$destinations = $config.Config.destination
+
+#Check if Temp Directory exists (unclean script ending)
+if(Test-Path($tempDir)){
+    Remove-Item -Path $tempDir -Force -Confirm:$false -Recurse
+}
+#Create temp directory
+New-Item -Path $tempDir -ItemType Directory
+
+#Retrieve source files
+foreach($source in $sources){
+    $body = $null
+    
+    #region Map Source Drive
+    try{
+        $sourceMap = $sourceMapDrive + ":"
+
+        if( (Get-PSDrive -Name $sourceMapDrive -ErrorAction SilentlyContinue) -or (Test-Path -Path $sourceMap)){
+            Remove-PSDrive -Name $sourceMapDrive -Force -Confirm:$false -ErrorAction SilentlyContinue
+        }
+        
+        if($source.username -and $source.password){
+            $secpasswd = ConvertTo-SecureString -String $source.password -AsPlainText -Force
+            $credential = New-Object System.Management.Automation.PSCredential ($source.username, $secpasswd)
+        
+            New-PSDrive -Name $sourceMapDrive -PSProvider "FileSystem" -Root $source.share -Credential $credential -ErrorAction Stop
+        }else{
+            New-PSDrive -Name $sourceMapDrive -PSProvider "FileSystem" -Root $source.share -ErrorAction Stop
+        }
+    }catch{
+        $body += ("<br/>Script Region Map Source Drive: Failed to map source $($source.share)" + "<br/><font color='red'>Error: $($_.Exception.Message)</font><br/>")
+    }
+    #endregion
+
+    #region Copy source files
+    try{
+        #Copy Items
+        Get-ChildItem -Path ($sourceMap + "\*") -Include @("*.crl") | ForEach-Object {
+            Copy-Item -Path $_.FullName -Destination $tempDir -Force -Confirm:$false -ErrorAction Stop
+        }
+
+        #Copy Items
+        Get-ChildItem -Path ($sourceMap + "\*") -Include @("*.crt") | ForEach-Object {
+            $split = ($_.Name).Split("_")
+            $stringPath = ($tempDir + "\" ) + (-join ($split[1..($split.Length-1)]) )
+            Copy-Item -Path $_.FullName -Destination $stringPath -Force -Confirm:$false -ErrorAction Stop
+        }
+    }catch{
+        $body += ("<br/>Script Region Copy source files: Failed to copy files from $($source.share)"+ "<br/><font color='red'>Error: $($_.Exception.Message)</font><br/>")
+    }
+    #endregion
+
+    #Unmap network drive
+    Remove-PSDrive -Name $sourceMapDrive -Force -Confirm:$false
+
+    if($body){
+        $err += "<strong>Source run for $($destination.share)</strong>"
+        $err += $body
+        $err += "</br>"
+    }
+}
+
+#Copy to destination(s)
+foreach($destination in $destinations){
+    $body = $null
+
+    #region Map Destination Drive
+    try{
+        $destMap = $destMapDrive + ":"
+
+        if( (Get-PSDrive -Name $destMapDrive -ErrorAction SilentlyContinue) -or (Test-Path -Path $destMap)){
+            Remove-PSDrive -Name $destMapDrive -Force -Confirm:$false
+        }
+        
+        if($destination.username -and $destination.password){
+            $secpasswd = ConvertTo-SecureString -String $destination.password -AsPlainText -Force
+            $credential = New-Object System.Management.Automation.PSCredential ($destination.username, $secpasswd)
+
+            New-PSDrive -Name $destMapDrive -PSProvider "FileSystem" -Root $destination.share -Credential $credential -ErrorAction Stop
+        }else{
+            New-PSDrive -Name $destMapDrive -PSProvider "FileSystem" -Root $destination.share -ErrorAction Stop
+        }
+    }catch{
+        $body += ("<br/>Script Region Map Destination Drive: Failed to map destination $($destination.share)" + "<br/><font color='red'>Error: $($_.Exception.Message)</font><br/>")
+    }
+    #endregion
+
+    #region Copy files to destination
+    try{
+        Get-ChildItem -Path ($tempDir + "\*") | ForEach-Object {
+            Copy-Item -Path $_.FullName -Destination ($destMap + "\") -Force -Confirm:$false -ErrorAction Stop
+        }
+    }catch{
+        $body += ("<br/>Script Region Copy files to destination: Failed to copy files to destination $($destination.share)" + "<br/><font color='red'>Error: $($_.Exception.Message)</font><br/>")
+    }
+    #endregion
+
+    #Unmap network drive
+    Remove-PSDrive -Name $destMapDrive -Force -Confirm:$false
+
+    if($body){
+        $err += "<strong>Destination run for $($destination.share)</strong>"
+        $err += $body
+        $err += "</br>"
+    }
+}
+
+if($err){
+    Send-MailMessage -SmtpServer $mailSmtpServer -From $mailSender -To $mailRecipient -Subject "PKI CRL Copy" -BodyAsHtml -Body $err
+}
+
+#Remove temp directory
+Remove-Item -Path $tempDir -Force -Confirm:$false -Recurse
