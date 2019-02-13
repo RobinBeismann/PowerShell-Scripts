@@ -275,12 +275,3 @@ function Move-AADIdentity(){
 
 $VerbosePreference="Continue"
 
-$o365cred = Get-Credential
-Connect-MsolService -Credential $o365cred
-
-Move-AADIdentity -sourceUPN "ellen.bogen@faq-o-matic.de" `
--sourceDomain "faq-o-matic.de" `
--destUPN "paul.ahner@contoso.com" `
--destDomain "contoso.com" `
--destADOU "OU=AADSync,DC=contose,DC=com" `
--AADConnectServer "AADConnect.contoso.com"
