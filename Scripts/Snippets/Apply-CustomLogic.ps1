@@ -1,4 +1,4 @@
-function Validate-CustomLogic($condition,$V1,$V2){
+function Apply-CustomLogic($condition,$V1,$V2){
     $condition = $condition.ToLower()
 
     switch($condition){
