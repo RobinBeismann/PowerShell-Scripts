@@ -1,4 +1,9 @@
 #Enter Time in UTC and get a list of Maintenance Windows
+$script:log = $null
+function Write-CustomHost($text){
+  Write-Host($text)
+  $script:log += $text
+}
 
 $timeZones = @{
     "Germany" = (Get-TimeZone | Select-Object -ExpandProperty Id)
@@ -19,7 +24,7 @@ $timeZones.GetEnumerator() | ForEach-Object {
 
     $lDate = $utcDate.Add( $zone.BaseUtcOffset ) 
     $lDate = (Get-Date -Date $lDate -Format "yyyy-MM-dd HH:mm")
-    Write-Host("Location: $site`n`tLocal Time: $lDate `n`tTime Zone: $($zone.DisplayName)`n")
+    Write-CustomHost("Location: $site`n`tLocal Time: $lDate `n`tTime Zone: $($zone.DisplayName)`n")
     
 }
 
