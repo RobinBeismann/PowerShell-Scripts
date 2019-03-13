@@ -7,7 +7,7 @@ function Get-CertificateExpiry($URL){
     
     #Will return an error on 404 pages, does not matter in this case -> just discard
     try{ 
-        $req.GetResponse()
+        $req.GetResponse() | Out-Null
     }catch{}
 
     try{
