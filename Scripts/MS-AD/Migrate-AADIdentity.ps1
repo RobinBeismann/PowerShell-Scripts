@@ -86,7 +86,6 @@ function Test-Port($hostname, $port){
 
 #Finds a eligeable DC for ActiveDirectory Webservices
 function Get-ActiveDirectoryWebservices($domainDNSName){
-
     [System.Collections.ArrayList]$eligeableDCs = @()
 
     try{
@@ -96,7 +95,12 @@ function Get-ActiveDirectoryWebservices($domainDNSName){
             if(!$ADWSDC -and ($result = (Test-Port -hostname $_.IPAddress -port 9389) )){
                Write-Verbose("Get-ActiveDirectoryWebservices: DC $($_.IPAddress) responded to ADWS for Domain $domainDNSName")
                #Ping all of them and add them to the eligeable DC Array
-               if($ping = (Test-Connection -Count 1 -ComputerName $_.IPAddress | Select-Object -ExpandProperty ResponseTime)){
+               try{
+                    $ping = (Test-Connection -Count 1 -ComputerName $_.IPAddress | Select-Object -ExpandProperty ResponseTime)
+               }catch{
+                    Write-Error($_)
+               }
+               if($ping -or ($ping -eq 0)){
                     Write-Verbose("Get-ActiveDirectoryWebservices: DC $($_.IPAddress) responded to PING ($ping ms) for Domain $domainDNSName")
                     $DC = New-Object -TypeName PSobject
                     $DC | Add-Member -Name Address -MemberType NoteProperty -Value $_.IPAddress
@@ -201,24 +205,25 @@ function Move-AADIdentity(){
                                 Write-Verbose("Move-AADIdentity: Waiting for $sourceUPN to appear in AAD Recycle Bin")
                                 Start-Sleep -Seconds 1
                             }
-                            Write-Verbose("Move-AADIdentity: Found Azure AD Identity $sourceUPN in AD Recycle Bin.")
+                            Write-Verbose("Move-AADIdentity: Found Azure AD Identity $sourceUPN in AAD Recycle Bin.")
                             Write-Verbose("Move-AADIdentity: Now sleeping 60 seconds and allow azure to replicate")
                             Start-Sleep -Seconds 60
 
 							#Restore AAD User
                             try{
-                                Get-MsolUser -ReturnDeletedUsers -UserPrincipalName $sourceUPN | Restore-MsolUser -ErrorAction Stop
+                                Get-MsolUser -ReturnDeletedUsers -UserPrincipalName $sourceUPN | Restore-MsolUser -ErrorAction Stop -AutoReconcileProxyConflicts
                                 $restored = $true
                             }catch{
-                                Write-Verbose("Move-AADIdentity: Error: Could not restore AAD User with UPN $sourceUPN, please review manually!")
+                                Write-Verbose("Move-AADIdentity: Error: Could not restore AAD User with UPN $sourceUPN, please review manually! Error $_")
                             }
 							
 							#Set temporary UPN so we can clear the immutableID
                             if($restored){
                                 Write-Verbose("Move-AADIdentity: Changing UPN from $sourceUPN to $tempUPN")
-                                Set-MsolUserPrincipalName -UserPrincipalName $sourceUPN -NewUserPrincipalName $tempUPN
+                                Set-MsolUserPrincipalName -UserPrincipalName $sourceUPN -NewUserPrincipalName $tempUPN 
                                 try{
                                     Write-Verbose("Move-AADIdentity: Sleeping 10 Seconds then changing immutableID to $value")
+                                    Start-Sleep -Seconds 10
                                     $value = Convert-GUIDtoImmutableID -valuetoconvert $destADUser.ObjectGUID
                                     Get-MsolUser -UserPrincipalName $tempUPN | Set-MsolUser -ImmutableId $value -ErrorAction Stop
                                     $anchorChanged = $true
@@ -274,4 +279,3 @@ function Move-AADIdentity(){
 
 
 $VerbosePreference="Continue"
-
