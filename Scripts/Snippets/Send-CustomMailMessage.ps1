@@ -11,31 +11,34 @@ function Send-CustomMailMessage(){
         [string]$ReplyTo
     )
     
-    $to | % {
-        $message = New-Object System.Net.Mail.MailMessage($from,$_)
-        $message.Subject = $subject
-        $message.Body = $body
+    $message = New-Object System.Net.Mail.MailMessage
+    $to | ForEach-Object {
+        $message.To.Add($_)
+    }
+    $message.From = $from
+    $message.Subject = $subject
+    $message.Body = $body
 
-        if($BodyAsHtml){
-            $message.IsBodyHTML = $true
-        }
+    if($BodyAsHtml){
+        $message.IsBodyHTML = $true
+    }
 
-        if($ReplyTo){
-            $message.ReplyTo = $ReplyTo
-        }
+    if($ReplyTo){
+        $message.ReplyTo = $ReplyTo
+    }
 
-        if($attachments){
-            $attachments | % {
-                if(Test-Path -Path $_){
-                    $message.Attachments.Add($_)
-                }else{
-                    Write-Error("Couldn't find attachment $_, breaking")
-                    break;
-                }
+    if($attachments){
+        $attachments | % {
+            if(Test-Path -Path $_){
+                $message.Attachments.Add($_)
+            }else{
+                Write-Error("Couldn't find attachment $_, breaking")
+                break;
             }
         }
-
-        $smtp = New-Object Net.Mail.SmtpClient($smtpServer)
-        $smtp.Send($message)
     }
+
+    $smtp = New-Object Net.Mail.SmtpClient($smtpServer)
+    $smtp.Send($message)
+    
 }
