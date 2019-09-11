@@ -1,11 +1,11 @@
-####################################################################################################################
+<#
 Sends Mails based on Task Sequence Title, Task Sequence Step and LastActionStatus
 This for example might look like:
 [Success]: Task Sequence "Task Sequence Name" on RandomPCName (Step: "Status Mail: Logs uploaded")
 The task sequence name, the PC Name and the Step name are retrieved from the SMS Environment
 
 Simply embed this script into a task sequence powershell step and it will inform you as soon as it reaches the step
-####################################################################################################################
+#>
 
 #Load SMS TS Env
 $tsenv = New-Object -ComObject 'Microsoft.SMS.TSEnvironment' -ErrorAction 'Stop'
