@@ -8,13 +8,21 @@ function Send-CustomMailMessage(){
         [string]$body,
         [switch]$BodyAsHtml,
         [array]$attachments,
-        [string]$ReplyTo
+        [string]$ReplyTo,
+        [array]$CC
     )
     
     $message = New-Object System.Net.Mail.MailMessage
     $to | ForEach-Object {
         $message.To.Add($_)
     }
+
+    if($CC){
+        $CC | ForEach-Object {
+            $message.CC.Add($_)
+        }
+    }
+    
     $message.From = $from
     $message.Subject = $subject
     $message.Body = $body
