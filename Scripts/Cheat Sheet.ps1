@@ -3,7 +3,9 @@
 #Get Disk Usage for fix all disks
 Get-WmiObject Win32_volume | Where-Object { $_.Capacity } | ForEach-Object { 
     $FreeSpace = $_.FreeSpace
+    $FreeSpaceGB = [math]::Round($FreeSpace / 1024 / 1024 / 1024,1)
     $Capacity = $_.Capacity
+    $CapacityGB = [math]::Round($Capacity / 1024 / 1024 / 1024,1)
     #Calculate
     $usage =  $FreeSpace / $Capacity * 100
     #Free
@@ -13,7 +15,9 @@ Get-WmiObject Win32_volume | Where-Object { $_.Capacity } | ForEach-Object {
 
     [PSCustomobject]@{
         Name = $_.Name
-        Usage = $usage
-        Free = $free
+        "Usage in %" = $usage
+        "Free Space in %" = $free
+        "Free Space (GB)" = $FreeSpaceGB
+        "Capacity (GB)" = $CapacityGB
     } 
 } | Out-GridView
