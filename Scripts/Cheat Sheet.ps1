@@ -1,6 +1,6 @@
-#A random collection of powershell snippets
+# A random collection of powershell snippets
 
-#Get Disk Usage for fix all disks
+# Get Disk Usage for fix all disks
 Get-WmiObject Win32_volume | Where-Object { $_.Capacity } | ForEach-Object { 
     $FreeSpace = $_.FreeSpace
     $FreeSpaceGB = [math]::Round($FreeSpace / 1024 / 1024 / 1024,1)
@@ -21,3 +21,7 @@ Get-WmiObject Win32_volume | Where-Object { $_.Capacity } | ForEach-Object {
         "Capacity (GB)" = $CapacityGB
     } 
 } | Out-GridView
+
+# Enable AD Change Notification across sites
+# Thanks Qasim Zaidi - saved from the retired technet
+Get-ADObject -Filter 'objectcategory -eq "cn=site-link,cn=schema,cn=configuration,dc=yxlondk,dc=dk"' -SearchBase 'cn=configuration,dc=yxlondk,dc=dk' -Properties options | Set-ADObject -Replace @{options=$($_.options -bor 1)} 
