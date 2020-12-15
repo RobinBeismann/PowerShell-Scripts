@@ -24,4 +24,4 @@ Get-WmiObject Win32_volume | Where-Object { $_.Capacity } | ForEach-Object {
 
 # Enable AD Change Notification across sites
 # Thanks Qasim Zaidi - saved from the retired technet
-Get-ADObject -Filter 'objectcategory -eq "cn=site-link,cn=schema,cn=configuration,dc=yxlondk,dc=dk"' -SearchBase 'cn=configuration,dc=yxlondk,dc=dk' -Properties options | Set-ADObject -Replace @{options=$($_.options -bor 1)} 
+Get-ADObject -Filter 'objectcategory -eq "cn=site-link,cn=schema,cn=configuration,dc=domain,dc=com"' -SearchBase 'cn=configuration,dc=domain,dc=comk' -Properties options | Set-ADObject -Replace @{options=$($_.options -bor 1)} 
