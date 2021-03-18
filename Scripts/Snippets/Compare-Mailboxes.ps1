@@ -4,12 +4,12 @@ function Get-MailboxHashtable(){
         $Identity
     )
     try{
-        $mailbox = Get-EXOMailbox -Identity $user
+        $mailbox = Get-EXOMailbox -Identity $Identity
     }catch{}
     
     if(!$mailbox){
         try{
-            $mailbox = Get-Mailbox -Identity $user
+            $mailbox = Get-Mailbox -Identity $Identity
         }catch{}
     }
     if(!($mailbox)){
@@ -27,7 +27,7 @@ function Get-MailboxHashtable(){
 function Compare-Hashtable(){
     [CmdletBinding()]
     Param(
-        [Parameter(ValueFromPipeline)]$Object,
+        [Parameter(ValueFromPipeline=$true)]$Object,
         $ReferenceObject
     )
     $arr = @()
