@@ -97,9 +97,6 @@ function Invoke-NetboxQuery {
 # Get Devices
 Invoke-NetboxQuery -Uri "dcim/devices/"
 
-# Get Devices
-Invoke-NetboxQuery -Uri "dcim/devices/"
-
 # New Cluster
 Invoke-NetboxQuery -Uri "virtualization/clusters/" -Method 'POST' -Body @{ 
         name = $scClusterName 
