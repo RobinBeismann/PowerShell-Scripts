@@ -1,5 +1,5 @@
 $api_base_url = https://netbox.contoso.com/api/
-$token = ""
+$nbToken = ""
 
 function Invoke-NetboxQuery {
     param (
