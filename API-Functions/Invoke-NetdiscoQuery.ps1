@@ -25,22 +25,6 @@ function Invoke-NetdiscoQuery {
         $Encoding = [System.Text.Encoding]::UTF8
     }
     process{
-        if(!($global:ndToken)){
-            $params = @{
-                Method = 'POST'
-                Uri = $global:nd_api_base_url + "login"
-                Headers = @{
-                    "accept"="application/json"
-                }
-                Body = @{
-                    username=$global:ndCredentials.GetNetworkCredential().username
-                    password=$global:ndCredentials.GetNetworkCredential().password
-                }
-            }
-            $response = Invoke-RestMethod @params
-            $global:ndToken = $response.api_key
-        }
-
         # Check if the URI is already a fully featured URI
         if(
             !([regex]::Match($uri,"(http|https):\/\/.*\/api\/",[Text.RegularExpressions.RegexOptions]'IgnoreCase, CultureInvariant').Success)
@@ -81,13 +65,47 @@ function Invoke-NetdiscoQuery {
 
             # Get Result
             try{
+                if(!$global:ndToken){
+                    throw("TOKEN_REQUIRED")
+                }
+
                 [Microsoft.PowerShell.Commands.WebResponseObject]$RawResult = Invoke-WebRequest @Params
                 $EncodedResult = $Encoding.GetString(
                     $RawResult.RawContentStream.ToArray()
                 )
                 $Results = ConvertFrom-Json -InputObject $EncodedResult
+                
             }catch{
-                Write-Error -ErrorAction Stop -Message "Error at Rest Request: $($_.Exception.Message)`n`n Params:`n$($params | ConvertTo-Json)"
+                if(
+                    ($_.Exception.Message -eq "TOKEN_REQUIRED") -or
+                    ($_.Exception.Response.StatusCode -eq 401)
+                ){
+                    $authParams = @{
+                        Method = 'POST'
+                        Uri = $global:nd_api_base_url + "login"
+                        Headers = @{
+                            "accept"="application/json"
+                        }
+                        Body = @{
+                            username=$global:ndCredentials.GetNetworkCredential().username
+                            password=$global:ndCredentials.GetNetworkCredential().password
+                        }
+                    }
+                    $response = Invoke-RestMethod @authParams
+                    $global:ndToken = $response.api_key
+
+                    try{
+                        [Microsoft.PowerShell.Commands.WebResponseObject]$RawResult = Invoke-WebRequest @Params
+                        $EncodedResult = $Encoding.GetString(
+                            $RawResult.RawContentStream.ToArray()
+                        )
+                        $Results = ConvertFrom-Json -InputObject $EncodedResult
+                    }catch{
+                        "Error at Rest Request: $($_.Exception.Message)`n`n Params:`n$($params | ConvertTo-Json)"
+                    }
+                }else{
+                    Write-Error -ErrorAction Stop -Message "Error at Rest Request: $($_.Exception.Message)`n`n Params:`n$($params | ConvertTo-Json)"
+                }
             }
             $null = $QueryResults.Add($Results)
 
