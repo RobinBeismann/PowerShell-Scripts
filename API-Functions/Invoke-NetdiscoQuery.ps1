@@ -89,33 +89,9 @@ function Invoke-NetdiscoQuery {
             }catch{
                 Write-Error -ErrorAction Stop -Message "Error at Rest Request: $($_.Exception.Message)`n`n Params:`n$($params | ConvertTo-Json)"
             }
-            # Add results to table
-            if (
-                $Results.results
-            ) {
-                $null = $QueryResults.AddRange($Results.results)
-            # Add single result to table
-            }elseif(
-                $Results -and
-                !(
-                    $Results.PSObject.Properties.Name.Contains("results") -or
-                    $Results.PSObject.Properties.Name.Contains("count")
-                )
-            ){
-                $null = $QueryResults.Add($Results)
-            }
+            $null = $QueryResults.Add($Results)
 
-            # Process next page
-            if($Results.'next'){
-                # If ForceSSL is set, overwrite any next page urls with https
-                if($ForceSSL){
-                    $uri = $Results.'next'.Replace("http://","https://")
-                }else{
-                    $uri = $Results.'next'
-                }      
-            }else{
-                $uri = $null
-            }
+            $uri = $null
         # Break out of loop if we got no next page
         } until (!($uri))
 
@@ -128,5 +104,3 @@ function Invoke-NetdiscoQuery {
         $QueryResults
     }
 }
-
-Invoke-NetdiscoQuery -Uri "api/v1/object/device/127.0.0.1" -Verbose
