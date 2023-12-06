@@ -10,7 +10,11 @@ function Invoke-NetboxQuery {
         [parameter(Mandatory = $false)]
         $Body,        
         [parameter(Mandatory = $false)]
-        $ForceSSL = $true
+        $ForceSSL = $true,
+        [parameter(Mandatory = $false)]
+        $ApiBaseUrl = $global:api_base_url,
+        [parameter(Mandatory = $false)]
+        $ApiToken = $global:nbToken
     )
 
     begin{
@@ -30,7 +34,7 @@ function Invoke-NetboxQuery {
             if($Uri.StartsWith("/")){
                 $uri = $Uri.Substring(1)
             }
-            $Uri = $global:api_base_url + $Uri
+            $Uri = $ApiBaseUrl + $Uri
         }
 
         # If ForceSSL is set, overwrite any next page urls with https
@@ -41,7 +45,7 @@ function Invoke-NetboxQuery {
         # Format headers.
         $HeaderParams = @{
             'Content-Type'  = "application/json"
-            'Authorization' = "Token $global:nbToken"
+            'Authorization' = "Token $ApiToken"
         }
 
 
