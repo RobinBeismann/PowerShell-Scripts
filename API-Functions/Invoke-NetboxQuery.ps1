@@ -72,7 +72,13 @@ function Invoke-NetboxQuery {
                 )
                 $Results = ConvertFrom-Json -InputObject $EncodedResult
             }catch{
-                Write-Error -ErrorAction Stop -Message "Error at Rest Request: $($_.Exception.Message)`n`n Params:`n$($params | ConvertTo-Json)"
+                $ErrorDetails = @{
+                    Parameters = $Params
+                    RawBody = $Body
+                    ExactError = $_.ErrorDetails
+                } | ConvertTo-Json
+
+                Write-Error -ErrorAction Stop -Message "Error at Rest Request: $($_.Exception.Message)`n`n Error Details:`n$($ErrorDetails)"
             }
             # Add results to table
             if (
