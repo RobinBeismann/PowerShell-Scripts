@@ -53,6 +53,14 @@ $EventTypes = @(
      @{
         Type = "UserInitiatedLogon"
         Filter = @{logname='Security'; id=4624}
+     },
+     @{
+        Type = "UserInitiatedUnlock"
+        Filter = @{logname='Security'; id=4801}
+     },
+     @{
+        Type = "UserInitiatedLock"
+        Filter = @{logname='Security'; id=4800}
      }
     
 )
