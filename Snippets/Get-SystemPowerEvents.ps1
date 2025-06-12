@@ -4,27 +4,55 @@ $computerName = $env:computerName
 $EventTypes = @(
      @{
         Type = "ResumeStandby"
-        Filter = @{logname=’System’; id=1; ProviderName='Microsoft-Windows-Power-Troubleshooter'}
+        Filter = @{logname='System'; id=1; ProviderName='Microsoft-Windows-Power-Troubleshooter'}
      },
      @{
         Type = "SystemBoot"
-        Filter = @{logname=’System’; id=12; ProviderName='Microsoft-Windows-Kernel-General'}
+        Filter = @{logname='System'; id=12; ProviderName='Microsoft-Windows-Kernel-General'}
      },
      @{
         Type = "StartStandby"
-        Filter = @{logname=’System’; id=42; ProviderName='Microsoft-Windows-Kernel-Power'}
+        Filter = @{logname='System'; id=42; ProviderName='Microsoft-Windows-Kernel-Power'}
      },
      @{
-        Type = "Shutdown"
-        Filter = @{logname=’System’; id=1074}
+        Type = "ShutdownClean"
+        Filter = @{logname='System'; id=1074}
+     },
+     @{
+        Type = "RebootClean"
+        Filter = @{logname='System'; id=1074}
+     },
+     @{
+        Type = "RebootDirty"
+        Filter = @{logname='System'; id=41}
+     },
+     @{
+        Type = "ShutdownClean"
+        Filter = @{logname='System'; id=6006}
+     },
+     @{
+        Type = "ShutdownDirty"
+        Filter = @{logname='System'; id=6008}
      },
      @{
         Type = "SystemBootEventLogStart"
-        Filter = @{logname=’System’; id=6005}
+        Filter = @{logname='System'; id=6005}
      },
      @{
         Type = "ShutdownEventLogEnd"
-        Filter = @{logname=’System’; id=6006}
+        Filter = @{logname='System'; id=6006}
+     },
+     @{
+        Type = "UserInitiatedLogoff"
+        Filter = @{logname='Security'; id=4647}
+     },
+     @{
+        Type = "UserInitiatedLogon"
+        Filter = @{logname='Security'; id=4624}
+     },
+     @{
+        Type = "UserInitiatedLogon"
+        Filter = @{logname='Security'; id=4624}
      }
     
 )
@@ -41,7 +69,8 @@ $Events = @()
 $EventTypes.GetEnumerator() | ForEach-Object {
     $Type = $_
     Write-Host("[$(Get-Date) - $computerName] Querying $($_.Type)")
-    Get-WinEvent -FilterHashtable $_.Filter -ComputerName $computerName | ForEach-Object {
+
+    Get-WinEvent -FilterHashtable $_.Filter -ComputerName $computerName -ErrorAction SilentlyContinue | ForEach-Object {
         $Events += [PSCustomObject]@{
             Time = (Get-Date -Date $_.TimeCreated -Format $ExportDateFormat)
             Type = $Type.Type
